@@ -3,6 +3,7 @@
 const express = require("express");
 var { graphqlHTTP } = require("express-graphql");
 var { buildSchema } = require("graphql");
+const axios = require('axios').default;
 
 // Constants
 const PORT = 8080;
@@ -14,12 +15,17 @@ var schema = buildSchema(`
     name: String,
     population: Int
   }
+  type Competition{
+    name: String
+    code: String
+    areaName: String
+  }
   type Query {
     hello: String,
     getCountry: Country
   }
   type Mutation {
-    importLeague(leagueCode: String): String
+    importLeague(leagueCode: String): Competition
   }
 `);
 
@@ -35,17 +41,27 @@ var root = {
     };
   },
   importLeague: () => {
-    fetch("http://api.football-data.org/v4/competitions/PL", {
-      method: "get",
-      headers: new Headers({
-        Authorization: "Basic c3ee902739e54d01920337af7edfc9dd",
-        "Content-Type": "application/x-www-form-urlencoded",
-      }),
-      body: "",
+    let info;
+    var config = {
+      method: 'get',
+      url: 'https://api.football-data.org//v2/competitions/PL',
+      headers: { 
+        'X-Auth-Token': 'c3ee902739e54d01920337af7edfc9dd'
+      }
+    };
+    
+    return axios(config)
+    .then(function (response) {
+      return {
+        name: response.data.name,
+        code: response.data.code,
+        areaName: response.data.area.name
+      }
     })
-      .then((response) => response.json())
-      .then((data) => console.log(data));
-      return "aqui"
+    .catch(function (error) {
+      console.log(error);
+    });    
+    
   },
 };
 
@@ -60,6 +76,7 @@ app.use(
 );
 
 app.get("/", (req, res) => {
+  
   res.send("AAAAHeasdsdfsdfaa  aqqq llo Wo rl  d 334538dddfdf88   5 aaaa");
 });
 
