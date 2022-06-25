@@ -5,7 +5,7 @@ services:
     ports:
       - "8081:8080"
     volumes:
-      - "./app:/usr/src/app"
+      - ".:/usr/src"
     links:
       - santex-football-data-database 
       - santex-football-data-mongo 
