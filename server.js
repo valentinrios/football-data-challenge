@@ -10,7 +10,7 @@ require("dotenv").config();
 
 let db, competition, team, player;
 MongoClient.connect(
-  `mongodb://${process.env.MONGO_ROOT_USERNAME}:${process.env.MONGO_ROOT_PASSWORD}@santex-football-data-mongo:27017/`,
+  `mongodb://${process.env.MONGO_ROOT_USERNAME}:${process.env.MONGO_ROOT_PASSWORD}@valentinrios-mongo:27017/`,
   {
     useNewUrlParser: true,
     useUnifiedTopology: true,
@@ -30,7 +30,6 @@ MongoClient.connect(
   }
 );
 
-// Construct a schema, using GraphQL schema language
 let schema = buildSchema(`
   type ImportLeagueResponse{
     message: String
@@ -90,7 +89,6 @@ let schema = buildSchema(`
   }
 `);
 
-// The root provides a resolver function for each API endpoint
 let root = {
   players: async (req) => {
     let playersByLeagueToReturn = [];

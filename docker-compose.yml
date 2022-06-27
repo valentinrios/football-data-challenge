@@ -1,38 +1,29 @@
-version: "3.9"  # optional since v1.27.0
+version: "3.9"
 services:
-  santex-football-data-api:
+
+  valentinrios-api:
     build: .
     ports:
       - "8081:8080"
     volumes:
       - ".:/usr/src"
     links:
-      - santex-football-data-database 
-      - santex-football-data-mongo 
+      - valentinrios-mongo 
 
-  santex-football-data-database:
-    image: mysql:8.0.29
-    command: --default-authentication-plugin=mysql_native_password
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: example
-
-  santex-football-data-mongo:
+  valentinrios-mongo:
     image: mongo
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-      MONGO_INITDB_DATABASE: santex-football-data-database
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE}
       
-  santex-football-data-mongo-express:
+  valentinrios-mongo-express:
     image: mongo-express
     restart: unless-stopped
     ports:
       - 8082:8081
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: root
-      ME_CONFIG_MONGODB_ADMINPASSWORD: example
-      ME_CONFIG_MONGODB_URL: mongodb://root:example@santex-football-data-mongo:27017/
-# volumes:
-#   logvolume01: {}
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_ROOT_USERNAME}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_ROOT_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@valentinrios-mongo:27017/
