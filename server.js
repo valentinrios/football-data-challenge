@@ -89,26 +89,29 @@ let schema = buildSchema(`
 // The root provides a resolver function for each API endpoint
 let root = {
   players: async (req) => {
-    let playersByLeagueToReturn = []
-    let competitionDB = await competition.find({ "code": req.leagueCode });
-    competitionDB = await competitionDB.toArray()
-    if(competitionDB.length === 0){
-      throw new Error('League not found');
+    let playersByLeagueToReturn = [];
+    let competitionDB = await competition.find({ code: req.leagueCode });
+    competitionDB = await competitionDB.toArray();
+    if (competitionDB.length === 0) {
+      throw new Error("League not found");
     }
-    let playersByLeague = await player.find({ "league": req.leagueCode, "team.name": req.teamName });
+    let playersByLeague = await player.find({
+      league: req.leagueCode,
+      "team.name": req.teamName,
+    });
     await playersByLeague.forEach((player) => {
-      playersByLeagueToReturn.push(player)
+      playersByLeagueToReturn.push(player);
     });
     return playersByLeagueToReturn;
   },
   team: async (req) => {
     let teamDB = await team.findOne({ name: req.name });
-      let playersByTeamToReturn = [];
-      let playersByTeam = await player.find({ "team.id": teamDB.id });
-      await playersByTeam.forEach((player) => {
-        playersByTeamToReturn.push(player)
-      });
-      teamDB.players = playersByTeamToReturn
+    let playersByTeamToReturn = [];
+    let playersByTeam = await player.find({ "team.id": teamDB.id });
+    await playersByTeam.forEach((player) => {
+      playersByTeamToReturn.push(player);
+    });
+    teamDB.players = playersByTeamToReturn;
     return teamDB;
   },
   importLeague: (req) => {
