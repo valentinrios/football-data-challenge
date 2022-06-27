@@ -1,0 +1,20 @@
+{
+    "name": "football-data-challenge-api",
+    "version": "1.0.0",
+    "description": "",
+    "author": "Valentin Rios <vrios2504@gmail.com>",
+    "main": "server.js",
+    "scripts": {
+        "start": "nodemon -L ./app/server.js"
+    },
+    "dependencies": {
+        "axios": "^0.27.2",
+        "axios-rate-limit": "^1.3.0",
+        "dotenv": "^16.0.1",
+        "express": "^4.18.1",
+        "express-graphql": "^0.12.0",
+        "graphql": "^15.8.0",
+        "mongodb": "4.7",
+        "nodemon": "^1.3.3"
+    }
+}
