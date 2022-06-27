@@ -4,6 +4,7 @@ const express = require("express");
 let { graphqlHTTP } = require("express-graphql");
 let { buildSchema } = require("graphql");
 const axios = require("axios").default;
+const rateLimit = require("axios-rate-limit");
 const MongoClient = require("mongodb").MongoClient;
 require("dotenv").config();
 
@@ -31,6 +32,9 @@ MongoClient.connect(
 
 // Construct a schema, using GraphQL schema language
 let schema = buildSchema(`
+  type ImportLeagueResponse{
+    message: String
+  }
   type PlayerDetails{
     id: Int
     name: String
@@ -82,7 +86,7 @@ let schema = buildSchema(`
     players(leagueCode: String, teamName: String): [Player]
   }
   type Mutation {
-    importLeague(leagueCode: String): Competition
+    importLeague(leagueCode: String): ImportLeagueResponse
   }
 `);
 
@@ -115,6 +119,20 @@ let root = {
     return teamDB;
   },
   importLeague: (req) => {
+    const http = rateLimit(
+      axios.create({
+        baseURL: `${process.env.FOOTBALL_DATA_API_URL}/competitions/`,
+        timeout: 10000,
+        headers: {
+          "X-Auth-Token": process.env.FOOTBALL_DATA_API_KEY,
+        },
+      }),
+      {
+        maxRequests: 10,
+        perMilliseconds: 60000,
+      }
+    );
+
     let config = {
       method: "get",
       url: `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}`,
@@ -123,23 +141,28 @@ let root = {
       },
     };
 
-    let competitionAxiosRequest = axios(config);
+    let competitionAxiosRequest = http.get(`${req.leagueCode}`);
+    let teamsAxiosRequest = http.get(`${req.leagueCode}/teams`);
+    let playersAxiosRequest = http.get(`${req.leagueCode}/scorers`);
 
-    config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/teams`;
-    let teamsAxiosRequest = axios(config);
-
-    config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/scorers`;
-    let playersAxiosRequest = axios(config);
-
-    Promise.all([
+    return Promise.all([
       competitionAxiosRequest,
       teamsAxiosRequest,
       playersAxiosRequest,
-    ]).then(function (responses) {
-      saveCompetitionToDB(responses[0], req.leagueCode);
-      saveteamsToDB(responses[1], req.leagueCode);
-      savePlayersToDB(responses[2], req.leagueCode);
-    });
+    ])
+      .then(function (responses) {
+        saveCompetitionToDB(responses[0], req.leagueCode);
+        saveteamsToDB(responses[1], req.leagueCode);
+        savePlayersToDB(responses[2], req.leagueCode);
+        return {
+          message: "Great! Data imported."
+        }
+      })
+      .catch((error) => {
+        return {
+          message: "Wait! The Football Data API is not available. Try Later."
+        }
+      });
   },
 };
 
