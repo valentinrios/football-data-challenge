@@ -71,11 +71,10 @@ let root = {
     return "Hello world!";
   },
   team: (req) => {
-    let teamDB = team.findOne({ name: req.name })
+    let teamDB = team.findOne({ name: req.name });
     return teamDB;
   },
   importLeague: (req) => {
-    
     let config = {
       method: "get",
       url: `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}`,
@@ -85,64 +84,91 @@ let root = {
     };
 
     return axios(config)
-      .then(function (response) {
-        let competitionRetrieved = {
-          name: response.data.name,
-          code: response.data.code,
-          areaName: response.data.area.name,
-        };
-
-        competition.findOneAndUpdate(
-          { code: competitionRetrieved.code },
-          { $set: competitionRetrieved },
-          { upsert: true, returnNewDocument: true }
-        );
-      })
-      .then((response) => {
-        config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/teams`
+      .then((response)=>saveCompetitionToDB(response))
+      .then(() => {
+        config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/teams`;
         axios(config)
-          .then(function (response) {
-            response.data.teams.map(async (teamRetrieved) => {
-              let teamDB = await team.findOne({ id: teamRetrieved.id })
-              if (teamDB) {
-                if (!teamDB.league.includes(req.leagueCode)) {
-                  teamDB.league.push(req.leagueCode)
-                  team.findOneAndUpdate(
-                    { id: teamDB.id },
-                    { $set: teamDB },
-                    { upsert: true, returnNewDocument: true }
-                  );
-                }
-              }else{
-                teamRetrieved.league = [req.leagueCode]
-                team.findOneAndUpdate(
-                  { id: teamRetrieved.id },
-                  { $set: teamRetrieved },
-                  { upsert: true, returnNewDocument: true }
-                );
-              }
-            });
-          })
-          .then((response) => {
-            config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/scorers`,
-            axios(config).then(function (response) {
-              response.data.scorers.map((scorerRetrieved) => {
-                player.findOneAndUpdate(
-                  { id: scorerRetrieved.id },
-                  { $set: scorerRetrieved },
-                  { upsert: true, returnNewDocument: true }
-                );
-              });
-            });
-            return response;
+          .then((response)=>saveteamsToDB(response, req.leagueCode))
+          .then(() => {
+            (config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/scorers`),
+              axios(config).then((response) =>
+                savePlayersToDB(response, req.leagueCode)
+              );
           });
-        return response;
       })
       .catch(function (error) {
         console.log(error);
       });
   },
 };
+
+function saveCompetitionToDB(response) {
+  let competitionRetrieved = {
+    name: response.data.name,
+    code: response.data.code,
+    areaName: response.data.area.name,
+  };
+
+  competition.findOneAndUpdate(
+    { code: competitionRetrieved.code },
+    { $set: competitionRetrieved },
+    { upsert: true, returnNewDocument: true }
+  );
+}
+
+function saveteamsToDB(response, leagueCode) {
+  response.data.teams.map(async (teamRetrieved) => {
+    let teamDB = await team.findOne({ id: teamRetrieved.id });
+    if (teamDB) {
+      if (!teamDB.league.includes(leagueCode)) {
+        teamDB.league.push(leagueCode);
+        team.findOneAndUpdate(
+          { id: teamDB.id },
+          { $set: teamDB },
+          { upsert: true, returnNewDocument: true }
+        );
+      }
+    } else {
+      teamRetrieved.league = [leagueCode];
+      team.findOneAndUpdate(
+        { id: teamRetrieved.id },
+        { $set: teamRetrieved },
+        { upsert: true, returnNewDocument: true }
+      );
+    }
+  });
+}
+
+function savePlayersToDB(response, leagueCode) {
+  response.data.scorers.map(async (scorerRetrieved) => {
+    let idToInsert, scorerToInsert;
+    let scorerDB = await player.findOne({ id: scorerRetrieved.player.id });
+    if (scorerDB) {
+      if (scorerDB.team.some((e) => e.id === scorerRetrieved.team.id)) {
+        idToInsert = scorerDB.player.id;
+        scorerToInsert = scorerDB;
+      } else {
+        scorerDB.team.push(scorerRetrieved.team);
+        idToInsert = scorerDB.player.id;
+        scorerToInsert = scorerDB;
+      }
+      if (!scorerDB.league.includes(leagueCode)) {
+        scorerDB.league.push(leagueCode);
+      }
+    } else {
+      scorerRetrieved.team = [scorerRetrieved.team];
+      scorerRetrieved.league = [leagueCode];
+      idToInsert = scorerRetrieved.player.id;
+      scorerToInsert = scorerRetrieved;
+    }
+
+    player.findOneAndUpdate(
+      { id: idToInsert },
+      { $set: scorerToInsert },
+      { upsert: true, returnNewDocument: true }
+    );
+  });
+}
 
 let app = express();
 app.use(
