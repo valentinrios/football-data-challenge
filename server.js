@@ -31,6 +31,25 @@ MongoClient.connect(
 
 // Construct a schema, using GraphQL schema language
 let schema = buildSchema(`
+  type PlayerDetails{
+    id: Int
+    name: String
+    firstName: String
+    lastName: String
+    dateOfBirth: String
+    countryOfBirth: String
+    nationality: String
+    position: String
+    shirtNumber: Int
+    lastUpdated: String
+  }
+  type Player{
+    id: Int
+    league: [String]
+    numberOfGoals: Int
+    player: PlayerDetails
+    team: [Team]
+  }
   type Area{
     id: Int
     name: String
@@ -56,9 +75,11 @@ let schema = buildSchema(`
     tla: String
     venue: String
     website: String
+    players: [Player]
   }
   type Query {
-    team(name: String, getPlayers: Boolean): Team
+    team(name: String, getPlayers: Boolean): Team    
+    players(leagueCode: String, teamName: String): [Player]
   }
   type Mutation {
     importLeague(leagueCode: String): Competition
@@ -67,11 +88,27 @@ let schema = buildSchema(`
 
 // The root provides a resolver function for each API endpoint
 let root = {
-  hello: () => {
-    return "Hello world!";
+  players: async (req) => {
+    let playersByLeagueToReturn = []
+    let competitionDB = await competition.find({ "code": req.leagueCode });
+    competitionDB = await competitionDB.toArray()
+    if(competitionDB.length === 0){
+      throw new Error('League not found');
+    }
+    let playersByLeague = await player.find({ "league": req.leagueCode, "team.name": req.teamName });
+    await playersByLeague.forEach((player) => {
+      playersByLeagueToReturn.push(player)
+    });
+    return playersByLeagueToReturn;
   },
-  team: (req) => {
-    let teamDB = team.findOne({ name: req.name });
+  team: async (req) => {
+    let teamDB = await team.findOne({ name: req.name });
+      let playersByTeamToReturn = [];
+      let playersByTeam = await player.find({ "team.id": teamDB.id });
+      await playersByTeam.forEach((player) => {
+        playersByTeamToReturn.push(player)
+      });
+      teamDB.players = playersByTeamToReturn
     return teamDB;
   },
   importLeague: (req) => {
@@ -83,35 +120,30 @@ let root = {
       },
     };
 
-    return axios(config)
-      .then((response)=>saveCompetitionToDB(response))
-      .then(() => {
-        config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/teams`;
-        axios(config)
-          .then((response)=>saveteamsToDB(response, req.leagueCode))
-          .then(() => {
-            (config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/scorers`),
-              axios(config).then((response) =>
-                savePlayersToDB(response, req.leagueCode)
-              );
-          });
-      })
-      .catch(function (error) {
-        console.log(error);
-      });
+    let competitionAxiosRequest = axios(config);
+
+    config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/teams`;
+    let teamsAxiosRequest = axios(config);
+
+    config.url = `${process.env.FOOTBALL_DATA_API_URL}/competitions/${req.leagueCode}/scorers`;
+    let playersAxiosRequest = axios(config);
+
+    Promise.all([
+      competitionAxiosRequest,
+      teamsAxiosRequest,
+      playersAxiosRequest,
+    ]).then(function (responses) {
+      saveCompetitionToDB(responses[0], req.leagueCode);
+      saveteamsToDB(responses[1], req.leagueCode);
+      savePlayersToDB(responses[2], req.leagueCode);
+    });
   },
 };
 
 function saveCompetitionToDB(response) {
-  let competitionRetrieved = {
-    name: response.data.name,
-    code: response.data.code,
-    areaName: response.data.area.name,
-  };
-
   competition.findOneAndUpdate(
-    { code: competitionRetrieved.code },
-    { $set: competitionRetrieved },
+    { code: response.data.code },
+    { $set: response.data },
     { upsert: true, returnNewDocument: true }
   );
 }
